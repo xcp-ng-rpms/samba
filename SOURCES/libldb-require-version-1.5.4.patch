@@ -1,0 +1,150 @@
+From a691be8ed36fb5740ae877a46f0aff72ce0c9cb2 Mon Sep 17 00:00:00 2001
+From: Isaac Boukris <iboukris@gmail.com>
+Date: Mon, 4 May 2020 12:17:37 +0200
+Subject: [PATCH] ldb: revert ad-dc fix and keep ldb version at 1.5.4
+
+Revert "ldap server: generate correct referral schemes"
+
+This reverts commit 1958cd8a7fb81ec51b81944ecf4dd0fb5c4208fa.
+---
+ lib/ldb/include/ldb_module.h               |  5 -----
+ lib/ldb/wscript                            |  2 +-
+ selftest/knownfail.d/ldap_referrals        |  1 +
+ source4/dsdb/samdb/ldb_modules/partition.c | 16 +++++-----------
+ source4/ldap_server/ldap_backend.c         | 18 ------------------
+ source4/ldap_server/ldap_server.c          |  1 -
+ source4/ldap_server/ldap_server.h          |  6 ------
+ 7 files changed, 7 insertions(+), 42 deletions(-)
+ create mode 100644 selftest/knownfail.d/ldap_referrals
+
+diff --git a/lib/ldb/include/ldb_module.h b/lib/ldb/include/ldb_module.h
+index 8c47082690b..9a5c61d0e73 100644
+--- a/lib/ldb/include/ldb_module.h
++++ b/lib/ldb/include/ldb_module.h
+@@ -103,11 +103,6 @@ struct ldb_module;
+  * attributes, not to be printed in trace messages */
+ #define LDB_SECRET_ATTRIBUTE_LIST_OPAQUE "LDB_SECRET_ATTRIBUTE_LIST"
+ 
+-/*
+- * The scheme to be used for referral entries, i.e. ldap or ldaps
+- */
+-#define LDAP_REFERRAL_SCHEME_OPAQUE "LDAP_REFERRAL_SCHEME"
+-
+ /*
+    these function pointers define the operations that a ldb module can intercept
+ */
+diff --git a/lib/ldb/wscript b/lib/ldb/wscript
+index 0f760a9bc80..d3402a7b5b2 100644
+--- a/lib/ldb/wscript
++++ b/lib/ldb/wscript
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env python
+ 
+ APPNAME = 'ldb'
+-VERSION = '1.5.7'
++VERSION = '1.5.4'
+ 
+ import sys, os
+ 
+diff --git a/selftest/knownfail.d/ldap_referrals b/selftest/knownfail.d/ldap_referrals
+new file mode 100644
+index 00000000000..403f0d3bd6d
+--- /dev/null
++++ b/selftest/knownfail.d/ldap_referrals
+@@ -0,0 +1 @@
++^samba.ldap.referrals.samba.tests.ldap_referrals.LdapReferralTest.test_ldaps_search
+diff --git a/source4/dsdb/samdb/ldb_modules/partition.c b/source4/dsdb/samdb/ldb_modules/partition.c
+index f66ccab1dd5..49bdeb04fa5 100644
+--- a/source4/dsdb/samdb/ldb_modules/partition.c
++++ b/source4/dsdb/samdb/ldb_modules/partition.c
+@@ -902,17 +902,11 @@ static int partition_search(struct ldb_module *module, struct ldb_request *req)
+ 						 data->partitions[i]->ctrl->dn) == 0) &&
+ 			    (ldb_dn_compare(req->op.search.base,
+ 					    data->partitions[i]->ctrl->dn) != 0)) {
+-				const char *scheme = ldb_get_opaque(
+-				    ldb, LDAP_REFERRAL_SCHEME_OPAQUE);
+-				char *ref = talloc_asprintf(
+-					ac,
+-					"%s://%s/%s%s",
+-					scheme == NULL ? "ldap" : scheme,
+-					lpcfg_dnsdomain(lp_ctx),
+-					ldb_dn_get_linearized(
+-					    data->partitions[i]->ctrl->dn),
+-					req->op.search.scope ==
+-					    LDB_SCOPE_ONELEVEL ? "??base" : "");
++				char *ref = talloc_asprintf(ac,
++							    "ldap://%s/%s%s",
++							    lpcfg_dnsdomain(lp_ctx),
++							    ldb_dn_get_linearized(data->partitions[i]->ctrl->dn),
++							    req->op.search.scope == LDB_SCOPE_ONELEVEL ? "??base" : "");
+ 
+ 				if (ref == NULL) {
+ 					return ldb_oom(ldb);
+diff --git a/source4/ldap_server/ldap_backend.c b/source4/ldap_server/ldap_backend.c
+index 573472c0f7f..39f1aa2a2a6 100644
+--- a/source4/ldap_server/ldap_backend.c
++++ b/source4/ldap_server/ldap_backend.c
+@@ -647,24 +647,6 @@ static NTSTATUS ldapsrv_SearchRequest(struct ldapsrv_call *call)
+ 		call->notification.busy = true;
+ 	}
+ 
+-	{
+-		const char *scheme = NULL;
+-		switch (call->conn->referral_scheme) {
+-		case LDAP_REFERRAL_SCHEME_LDAPS:
+-			scheme = "ldaps";
+-			break;
+-		default:
+-			scheme = "ldap";
+-		}
+-		ldb_ret = ldb_set_opaque(
+-			samdb,
+-			LDAP_REFERRAL_SCHEME_OPAQUE,
+-			discard_const_p(char *, scheme));
+-		if (ldb_ret != LDB_SUCCESS) {
+-			goto reply;
+-		}
+-	}
+-
+ 	ldb_set_timeout(samdb, lreq, req->timelimit);
+ 
+ 	if (!call->conn->is_privileged) {
+diff --git a/source4/ldap_server/ldap_server.c b/source4/ldap_server/ldap_server.c
+index 25c3b624abc..7c7eeb0a6c1 100644
+--- a/source4/ldap_server/ldap_server.c
++++ b/source4/ldap_server/ldap_server.c
+@@ -436,7 +436,6 @@ static void ldapsrv_accept_tls_done(struct tevent_req *subreq)
+ 	}
+ 
+ 	conn->sockets.active = conn->sockets.tls;
+-	conn->referral_scheme = LDAP_REFERRAL_SCHEME_LDAPS;
+ 	ldapsrv_call_read_next(conn);
+ }
+ 
+diff --git a/source4/ldap_server/ldap_server.h b/source4/ldap_server/ldap_server.h
+index 5b944f5ab9b..d3e31fb1eec 100644
+--- a/source4/ldap_server/ldap_server.h
++++ b/source4/ldap_server/ldap_server.h
+@@ -24,11 +24,6 @@
+ #include "system/network.h"
+ #include "lib/param/loadparm.h"
+ 
+-enum ldap_server_referral_scheme {
+-	LDAP_REFERRAL_SCHEME_LDAP,
+-	LDAP_REFERRAL_SCHEME_LDAPS
+-};
+-
+ struct ldapsrv_connection {
+ 	struct ldapsrv_connection *next, *prev;
+ 	struct loadparm_context *lp_ctx;
+@@ -52,7 +47,6 @@ struct ldapsrv_connection {
+ 	bool is_privileged;
+ 	enum ldap_server_require_strong_auth require_strong_auth;
+ 	bool authz_logged;
+-	enum ldap_server_referral_scheme referral_scheme;
+ 
+ 	struct {
+ 		int initial_timeout;
+-- 
+2.24.1
+
