@@ -39,7 +39,8 @@
 
 %global with_profiling 1
 
-%global with_vfs_glusterfs 1
+# XCP-ng: don't build vfs_glusterfs
+%global with_vfs_glusterfs 0
 
 %global with_intel_aes_accel 0
 
@@ -72,7 +73,7 @@
 
 Name:           samba
 Version:        %{samba_version}
-Release:        %{?xsrel}%{?dist}
+Release:        %{?xsrel}.1%{?dist}
 
 Epoch:          0
 
@@ -165,7 +166,6 @@ BuildRequires: perl(ExtUtils::MakeMaker)
 BuildRequires: perl(Parse::Yapp)
 BuildRequires: popt-devel
 BuildRequires: python2-devel
-BuildRequires: epel-release
 BuildRequires: python-dns
 # This is required to avoid packaging the in tree
 # copy of Samba
@@ -1325,10 +1325,6 @@ rm -rf %{buildroot}
 %{_mandir}/man8/vfs_virusfilter.8*
 %{_mandir}/man8/vfs_worm.8*
 %{_mandir}/man8/vfs_xattr_tdb.8*
-
-%if ! %{with_vfs_glusterfs}
-%exclude %{_mandir}/man8/vfs_glusterfs.8*
-%endif
 
 %attr(775,root,printadmin) %dir /var/lib/samba/drivers
 
@@ -3255,6 +3251,10 @@ rm -rf %{buildroot}
 %{?_cov_results_package}
 
 %changelog
+* Fri Sep 16 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 4.10.16-17.0.3.1
+- Don't build vfs_glusterfs and thus don't buildrequire glusterfs
+- Remove the useless build dependency to epel-release
+
 * Wed Mar 9 2022 Lin Liu<lin.liu@citrix.com> - 4.10.16-17.0.3
 - CP-37874: Enable coverity scan
 
