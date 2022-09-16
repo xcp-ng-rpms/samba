@@ -140,6 +140,9 @@ Obsoletes: samba-swat < %{samba_depver}
 Provides: samba4-swat = %{samba_depver}
 Obsoletes: samba4-swat < %{samba_depver}
 
+# XCP-ng
+BuildRequires: gcc
+
 BuildRequires: avahi-devel
 BuildRequires: cups-devel
 BuildRequires: dbus-devel
@@ -3254,6 +3257,7 @@ rm -rf %{buildroot}
 * Fri Sep 16 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 4.10.16-17.0.3.1
 - Don't build vfs_glusterfs and thus don't buildrequire glusterfs
 - Remove the useless build dependency to epel-release
+- Add gcc to the BuildRequires
 
 * Wed Mar 9 2022 Lin Liu<lin.liu@citrix.com> - 4.10.16-17.0.3
 - CP-37874: Enable coverity scan
