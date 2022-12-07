@@ -1,6 +1,6 @@
-%global package_speccommit 0cd7d83ec524bc1a0661430404d3b984aefd4db5
+%global package_speccommit 34d27b9b91d85b52813cec55f7318ab9bce33efd
 %global usver 4.10.16
-%global xsver 17.0.3
+%global xsver 17.0.4
 %global xsrel %{xsver}%{?xscount}%{?xshash}
 %global package_srccommit ee766dffdd8b95
 # rpmbuild --rebuild --with testsuite --without clustering samba.src.rpm
@@ -3254,6 +3254,12 @@ rm -rf %{buildroot}
 %{?_cov_results_package}
 
 %changelog
+* Wed Dec 07 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 4.10.16-17.0.4.1
+- Update from XS 8.3 pre-release updates
+- *** Upstream changelog ***
+- * Tue Sep 20 2022 Lin Liu<lin.liu@citrix.com> - 4.10.16-17.0.4
+- - CP-40720: Remove epel-release from BuildRequires
+
 * Fri Sep 16 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 4.10.16-17.0.3.1
 - Don't build vfs_glusterfs and thus don't buildrequire glusterfs
 - Remove the useless build dependency to epel-release
