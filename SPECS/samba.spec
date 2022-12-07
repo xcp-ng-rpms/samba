@@ -1,6 +1,6 @@
-%global package_speccommit 0cd7d83ec524bc1a0661430404d3b984aefd4db5
+%global package_speccommit 34d27b9b91d85b52813cec55f7318ab9bce33efd
 %global usver 4.10.16
-%global xsver 17.0.3
+%global xsver 17.0.4
 %global xsrel %{xsver}%{?xscount}%{?xshash}
 %global package_srccommit ee766dffdd8b95
 # rpmbuild --rebuild --with testsuite --without clustering samba.src.rpm
@@ -165,7 +165,6 @@ BuildRequires: perl(ExtUtils::MakeMaker)
 BuildRequires: perl(Parse::Yapp)
 BuildRequires: popt-devel
 BuildRequires: python2-devel
-BuildRequires: epel-release
 BuildRequires: python-dns
 # This is required to avoid packaging the in tree
 # copy of Samba
@@ -3255,6 +3254,9 @@ rm -rf %{buildroot}
 %{?_cov_results_package}
 
 %changelog
+* Tue Sep 20 2022 Lin Liu<lin.liu@citrix.com> - 4.10.16-17.0.4
+- CP-40720: Remove epel-release from BuildRequires
+
 * Wed Mar 9 2022 Lin Liu<lin.liu@citrix.com> - 4.10.16-17.0.3
 - CP-37874: Enable coverity scan
 
