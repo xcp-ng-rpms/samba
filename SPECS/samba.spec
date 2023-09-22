@@ -73,7 +73,7 @@
 
 Name:           samba
 Version:        %{samba_version}
-Release:        %{?xsrel}.1%{?dist}
+Release:        %{?xsrel}.2%{?dist}
 
 Epoch:          0
 
@@ -3254,6 +3254,9 @@ rm -rf %{buildroot}
 %{?_cov_results_package}
 
 %changelog
+* Fri Sep 22 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 4.10.16-17.0.4.2
+- Rebuild for updated libarchive
+
 * Wed Dec 07 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 4.10.16-17.0.4.1
 - Update from XS 8.3 pre-release updates
 - *** Upstream changelog ***
