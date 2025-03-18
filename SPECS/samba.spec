@@ -16,11 +16,7 @@
 # This should be rc1 or nil
 %define pre_release %nil
 
-%if "x%{?pre_release}" != "x"
-%define samba_release 0.%{main_release}.%{pre_release}%{?dist}
-%else
-%define samba_release %{main_release}%{?dist}
-%endif
+%define samba_release %{main_release}.1%{?dist}
 
 # This is a network daemon, do a hardened build
 # Enables PIE and full RELRO protection
@@ -42,26 +38,10 @@
 
 %global with_profiling 1
 
-%global with_vfs_cephfs 0
-%if 0%{?fedora}
-%ifarch aarch64 ppc64le s390x x86_64
-%global with_vfs_cephfs 1
-%endif
-%endif
-
-%global with_vfs_glusterfs 1
-%if 0%{?rhel}
+# XCP-ng: don't build vfs_glusterfs nor vfs_cephfs
 %global with_vfs_glusterfs 0
-# Only enable on x86_64
-%ifarch x86_64
-%global with_vfs_glusterfs 1
-%endif
-%endif
-
+%global with_vfs_cephfs 0
 %global with_intel_aes_accel 0
-%ifarch x86_64
-%global with_intel_aes_accel 1
-%endif
 
 %global libwbc_alternatives_version 0.15
 %global libwbc_alternatives_suffix %nil
@@ -70,11 +50,7 @@
 %endif
 
 %global with_mitkrb5 1
-%global with_dc 1
-
-%if 0%{?rhel}
 %global with_dc 0
-%endif
 
 %if %{with testsuite}
 %global with_dc 1
@@ -97,17 +73,9 @@ Name:           samba
 Version:        %{samba_version}
 Release:        %{samba_release}
 
-%if 0%{?rhel}
 Epoch:          0
-%else
-Epoch:          2
-%endif
 
-%if 0%{?epoch} > 0
-%define samba_depver %{epoch}:%{version}-%{release}
-%else
 %define samba_depver %{version}-%{release}
-%endif
 
 Summary:        Server and Client software to interoperate with Windows machines
 License:        GPLv3+ and LGPLv3+
@@ -115,8 +83,6 @@ URL:            http://www.samba.org/
 
 # This is a xz recompressed file of https://ftp.samba.org/pub/samba/samba-%%{version}%%{pre_release}.tar.gz
 Source0:        samba-%{version}%{pre_release}.tar.xz
-Source1:        https://ftp.samba.org/pub/samba/samba-%{version}%{pre_release}.tar.asc
-Source2:        gpgkey-52FBC0B86D954B0843324CDC6F33915B6568B7EA.gpg
 
 # Red Hat specific replacement-files
 Source10: samba.log
@@ -133,10 +99,9 @@ Source201: README.downgrade
 #
 # Generate the patchset using: git fpstd -N > samba-4.10-redhat.patch
 Patch0:    samba-4.10-redhat.patch
-
 # Set the libldb requirement back to 1.5.4, we don't need a newer version as
 # we only build Samba FS.
-Patch1000:    libldb-require-version-1.5.4.patch
+Patch1:    libldb-require-version-1.5.4.patch
 
 Requires(pre): /usr/sbin/groupadd
 Requires(post): systemd
@@ -173,6 +138,9 @@ Obsoletes: samba-swat < %{samba_depver}
 
 Provides: samba4-swat = %{samba_depver}
 Obsoletes: samba4-swat < %{samba_depver}
+
+# XCP-ng
+BuildRequires: gcc
 
 BuildRequires: avahi-devel
 BuildRequires: cups-devel
@@ -786,7 +754,6 @@ and use CTDB instead.
 
 
 %prep
-xzcat %{SOURCE0} | gpgv2 --quiet --keyring %{SOURCE2} %{SOURCE1} -
 %autosetup -n samba-%{version}%{pre_release} -p1
 
 %build
@@ -3305,26 +3272,46 @@ rm -rf %{buildroot}
 %endif # with_clustering_support
 
 %changelog
-* Tue Jul 25 2023 Andreas Schneider <asn@redhat.com> - 4.10.16-25
-- resolves: #2222250 - Fix netlogon capabilities level 2
+* Wed Mar 19 2025 Lucas Ravagnier <lucas.ravagnier@vates.tech> - 4.10.16-25.1
+- Update from CentOS 7
+- Remove GPG key & tarball verification
+- Replace some value in specfiles with the same as before
+- Disable vfs_cephfs because it was only necessary for fedora
+- *** Upstream changelog ***
+	* Tue Jul 25 2023 Andreas Schneider <asn@redhat.com> - 4.10.16-25
+	- resolves: #2222250 - Fix netlogon capabilities level 2
 
-* Fri Jan 20 2023 Andreas Schneider <asn@redhat.com> - 4.10.16-24
-- related: #2154364 - Add additional patches for CVE-2022-38023
+	* Fri Jan 20 2023 Andreas Schneider <asn@redhat.com> - 4.10.16-24
+	- related: #2154364 - Add additional patches for CVE-2022-38023
 
-* Wed Dec 21 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-23
-- resolves: #2154364 - Fix CVE-2022-38023
+	* Wed Dec 21 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-23
+	- resolves: #2154364 - Fix CVE-2022-38023
 
-* Tue Aug 30 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-20
-- resolves: #2119058 - Fix possible segfault in winbind
+	* Tue Aug 30 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-20
+	- resolves: #2119058 - Fix possible segfault in winbind
 
-* Tue May 10 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-19
-- resolves: #2081649 - Fix idmap_rfc2307 and idmap_nss returning wrong
+	* Tue May 10 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-19
+	- resolves: #2081649 - Fix idmap_rfc2307 and idmap_nss returning wrong
                        mapping for uid/gid conflict
 
-* Tue Jan 25 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-18
-- resolves: #2034800 - Fix usermap script regression caused by CVE-2020-25717
-- resolves: #2036595 - Fix MIT realm regression caused by CVE-2020-25717
-- resolves: #2046148 - Fix CVE-2021-44142
+	* Tue Jan 25 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-18
+	- resolves: #2034800 - Fix usermap script regression caused by CVE-2020-25717
+	- resolves: #2036595 - Fix MIT realm regression caused by CVE-2020-25717
+	- resolves: #2046148 - Fix CVE-2021-44142
+
+* Fri Sep 22 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 4.10.16-17.0.4.2
+- Rebuild for updated libarchive
+
+* Wed Dec 07 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 4.10.16-17.0.4.1
+- Update from XS 8.3 pre-release updates
+- *** Upstream changelog ***
+- * Tue Sep 20 2022 Lin Liu<lin.liu@citrix.com> - 4.10.16-17.0.4
+- - CP-40720: Remove epel-release from BuildRequires
+
+* Fri Sep 16 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 4.10.16-17.0.3.1
+- Don't build vfs_glusterfs and thus don't buildrequire glusterfs
+- Remove the useless build dependency to epel-release
+- Add gcc to the BuildRequires
 
 * Mon Nov 15 2021 Andreas Schneider <asn@redhat.com> - 4.10.16-17
 - related: #2019673 - Add missing checks for IPA DC server role
@@ -4610,7 +4597,7 @@ rm -rf %{buildroot}
 - Numerous improvements and bugfixes included
 - package libsmbsharemodes too
 - remove smbldap-tools as they are already packaged separately in Fedora
-- Fix bug 245506 
+- Fix bug 245506
 
 * Tue Oct 2 2007 Simo Sorce <ssorce@redhat.com> 3.0.26a-1.fc8
 - rebuild with AD DNS Update support
@@ -5012,7 +4999,7 @@ rm -rf %{buildroot}
   bugzilla #121356
 
 * Mon Apr 5 2004 Jay Fenlason <fenlason@redhat.com> 3.0.3-2.pre2
-- New upstream version  
+- New upstream version
 - Updated configure line to remove --with-fhs and to explicitly set all
   the directories that --with-fhs was setting.  We were overriding most of
   them anyway.  This closes #118598
@@ -5030,7 +5017,7 @@ rm -rf %{buildroot}
 * Mon Feb 16 2004 Jay Fenlason <fenlason@redhat.com> 3.0.2a-1
 - Upgrade to 3.0.2a
 
-* Mon Feb 16 2004 Karsten Hopp <karsten@redhat.de> 3.0.2-7 
+* Mon Feb 16 2004 Karsten Hopp <karsten@redhat.de> 3.0.2-7
 - fix ownership in -common package
 
 * Fri Feb 13 2004 Elliot Lee <sopwith@redhat.com>
@@ -5166,7 +5153,7 @@ rm -rf %{buildroot}
 
 * Fri Jul 26 2002 Trond Eivind Glomsrød <teg@redhat.com> 2.2.5-7
 - Enable VFS support and compile the "recycling" module (#69796)
-- more selective includes of the examples dir 
+- more selective includes of the examples dir
 
 * Tue Jul 23 2002 Trond Eivind Glomsrød <teg@redhat.com> 2.2.5-6
 - Fix the lpq parser for better handling of LPRng systems (#69352)
@@ -5187,11 +5174,11 @@ rm -rf %{buildroot}
 - 2.2.5
 
 * Fri Jun 14 2002 Trond Eivind Glomsrød <teg@redhat.com> 2.2.4-5
-- Move the post/preun of winbind into the -common subpackage, 
+- Move the post/preun of winbind into the -common subpackage,
   where the script is (#66128)
 
 * Tue Jun  4 2002 Trond Eivind Glomsrød <teg@redhat.com> 2.2.4-4
-- Fix pidfile locations so it runs properly again (2.2.4 
+- Fix pidfile locations so it runs properly again (2.2.4
   added a new directtive - #65007)
 
 * Thu May 23 2002 Tim Powers <timp@redhat.com>
@@ -5212,7 +5199,7 @@ rm -rf %{buildroot}
 - Add libsmbclient.a w/headerfile for KDE (#62202)
 
 * Tue Mar 26 2002 Trond Eivind Glomsrød <teg@redhat.com> 2.2.3a-4
-- Make the logrotate script look the correct place for the pid files 
+- Make the logrotate script look the correct place for the pid files
 
 * Thu Mar 14 2002 Nalin Dahyabhai <nalin@redhat.com> 2.2.3a-3
 - include interfaces.o in pam_smbpass.so, which needs symbols from interfaces.o
@@ -5235,12 +5222,12 @@ rm -rf %{buildroot}
 
 * Tue Nov 13 2001 Trond Eivind Glomsrød <teg@redhat.com> 2.2.2-6
 - Move winbind files to samba-common. Add separate initscript for
-  winbind 
+  winbind
 - Fixes for winbind - protect global variables with mutex, use
   more secure getenv
 
 * Thu Nov  8 2001 Trond Eivind Glomsrød <teg@redhat.com> 2.2.2-5
-- Teach smbadduser about "getent passwd" 
+- Teach smbadduser about "getent passwd"
 - Fix more pid-file references
 - Add (conditional) winbindd startup to the initscript, configured in
   /etc/sysconfig/samba
@@ -5271,8 +5258,8 @@ rm -rf %{buildroot}
   encrypted passwords off the choice is available. (#31351)
 
 * Wed Aug  8 2001 Trond Eivind Glomsrød <teg@redhat.com>
-- Use /var/cache/samba instead of /var/lock/samba 
-- Remove "domain controller" keyword from smb.conf, it's 
+- Use /var/cache/samba instead of /var/lock/samba
+- Remove "domain controller" keyword from smb.conf, it's
   deprecated (from #13704)
 - Sync some examples with smb.conf.default
 - Fix password synchronization (#16987)
@@ -5312,26 +5299,26 @@ rm -rf %{buildroot}
 * Fri Jun  8 2001 Preston Brown <pbrown@redhat.com>
 - enable encypted passwords by default
 
-* Thu Jun  7 2001 Helge Deller <hdeller@redhat.de> 
+* Thu Jun  7 2001 Helge Deller <hdeller@redhat.de>
 - build as 2.2.0-1 release
 - skip the documentation-directories docbook, manpages and yodldocs
 - don't include *.sgml documentation in package
 - moved codepage-directory to /usr/share/samba/codepages
-- make it compile with glibc-2.2.3-10 and kernel-headers-2.4.2-2   
+- make it compile with glibc-2.2.3-10 and kernel-headers-2.4.2-2
 
-* Mon May 21 2001 Helge Deller <hdeller@redhat.de> 
+* Mon May 21 2001 Helge Deller <hdeller@redhat.de>
 - updated to samba 2.2.0
 - moved codepages to %%{_datadir}/samba/codepages
 - use all available CPUs for building rpm packages
 - use %%{_xxx} defines at most places in spec-file
 - "License:" replaces "Copyright:"
 - dropped excludearch sparc
-- de-activated japanese patches 100 and 200 for now 
+- de-activated japanese patches 100 and 200 for now
   (they need to be fixed and tested wth 2.2.0)
 - separated swat.desktop file from spec-file and added
   german translations
 - moved /etc/sysconfig/samba to a separate source-file
-- use htmlview instead of direct call to netscape in 
+- use htmlview instead of direct call to netscape in
   swat.desktop-file
 
 * Mon May  7 2001 Bill Nottingham <notting@redhat.com>
@@ -5421,7 +5408,7 @@ rm -rf %{buildroot}
 
 * Sat Jul 15 2000 Bill Nottingham <notting@redhat.com>
 - move initscript back
-- remove 'Using Samba' book from %%doc 
+- remove 'Using Samba' book from %%doc
 - move stuff to /etc/samba (#13708)
 - default configuration tweaks (#13704)
 - some logrotate tweaks
@@ -5600,7 +5587,7 @@ rm -rf %{buildroot}
 * Tue Mar 23 1999 Bill Nottingham <notting@redhat.com>
 - logrotate changes
 
-* Sun Mar 21 1999 Cristian Gafton <gafton@redhat.com> 
+* Sun Mar 21 1999 Cristian Gafton <gafton@redhat.com>
 - auto rebuild in the new build environment (release 3)
 
 * Fri Mar 19 1999 Preston Brown <pbrown@redhat.com>
