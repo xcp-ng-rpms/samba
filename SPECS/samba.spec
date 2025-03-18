@@ -1,8 +1,3 @@
-%global package_speccommit 34d27b9b91d85b52813cec55f7318ab9bce33efd
-%global usver 4.10.16
-%global xsver 17.0.4
-%global xsrel %{xsver}%{?xscount}%{?xshash}
-%global package_srccommit ee766dffdd8b95
 # rpmbuild --rebuild --with testsuite --without clustering samba.src.rpm
 #
 # The testsuite is disabled by default. Set --with testsuite or bcond_without
@@ -11,6 +6,8 @@
 # ctdb is enabled by default, you can disable it with: --without clustering
 %bcond_without clustering
 
+%define main_release 25
+
 %define samba_version 4.10.16
 %define talloc_version 2.1.16
 %define tdb_version 1.3.18
@@ -18,6 +15,12 @@
 %define ldb_version 1.5.4
 # This should be rc1 or nil
 %define pre_release %nil
+
+%if "x%{?pre_release}" != "x"
+%define samba_release 0.%{main_release}.%{pre_release}%{?dist}
+%else
+%define samba_release %{main_release}%{?dist}
+%endif
 
 # This is a network daemon, do a hardened build
 # Enables PIE and full RELRO protection
@@ -39,10 +42,26 @@
 
 %global with_profiling 1
 
-# XCP-ng: don't build vfs_glusterfs
+%global with_vfs_cephfs 0
+%if 0%{?fedora}
+%ifarch aarch64 ppc64le s390x x86_64
+%global with_vfs_cephfs 1
+%endif
+%endif
+
+%global with_vfs_glusterfs 1
+%if 0%{?rhel}
 %global with_vfs_glusterfs 0
+# Only enable on x86_64
+%ifarch x86_64
+%global with_vfs_glusterfs 1
+%endif
+%endif
 
 %global with_intel_aes_accel 0
+%ifarch x86_64
+%global with_intel_aes_accel 1
+%endif
 
 %global libwbc_alternatives_version 0.15
 %global libwbc_alternatives_suffix %nil
@@ -51,8 +70,11 @@
 %endif
 
 %global with_mitkrb5 1
+%global with_dc 1
 
+%if 0%{?rhel}
 %global with_dc 0
+%endif
 
 %if %{with testsuite}
 %global with_dc 1
@@ -67,27 +89,34 @@
 %endif
 
 %define __python %{__python2}
-%global python_sitearch /usr/lib64/python2.7/site-packages
+%{!?python_sitearch: %define python_sitearch %(%{__python2} -c "from distutils.sysconfig import get_python_lib; print get_python_lib(1)")}
 
 %global _systemd_extra "Environment=KRB5CCNAME=FILE:/run/samba/krb5cc_samba"
 
 Name:           samba
 Version:        %{samba_version}
-Release:        %{?xsrel}.2%{?dist}
+Release:        %{samba_release}
 
+%if 0%{?rhel}
 Epoch:          0
+%else
+Epoch:          2
+%endif
 
+%if 0%{?epoch} > 0
+%define samba_depver %{epoch}:%{version}-%{release}
+%else
 %define samba_depver %{version}-%{release}
+%endif
 
 Summary:        Server and Client software to interoperate with Windows machines
 License:        GPLv3+ and LGPLv3+
 URL:            http://www.samba.org/
 
 # This is a xz recompressed file of https://ftp.samba.org/pub/samba/samba-%%{version}%%{pre_release}.tar.gz
-Source0: samba-4.10.16.tar.gz
-Patch0: samba-4.10-redhat.patch
-Patch1: libldb-require-version-1.5.4.patch
-Patch2: 0001-CP-38764-Disable-kerberos-auth-fallback.patch
+Source0:        samba-%{version}%{pre_release}.tar.xz
+Source1:        https://ftp.samba.org/pub/samba/samba-%{version}%{pre_release}.tar.asc
+Source2:        gpgkey-52FBC0B86D954B0843324CDC6F33915B6568B7EA.gpg
 
 # Red Hat specific replacement-files
 Source10: samba.log
@@ -103,6 +132,11 @@ Source201: README.downgrade
 # This will give us CI and makes it easy to generate patchsets.
 #
 # Generate the patchset using: git fpstd -N > samba-4.10-redhat.patch
+Patch0:    samba-4.10-redhat.patch
+
+# Set the libldb requirement back to 1.5.4, we don't need a newer version as
+# we only build Samba FS.
+Patch1000:    libldb-require-version-1.5.4.patch
 
 Requires(pre): /usr/sbin/groupadd
 Requires(post): systemd
@@ -139,9 +173,6 @@ Obsoletes: samba-swat < %{samba_depver}
 
 Provides: samba4-swat = %{samba_depver}
 Obsoletes: samba4-swat < %{samba_depver}
-
-# XCP-ng
-BuildRequires: gcc
 
 BuildRequires: avahi-devel
 BuildRequires: cups-devel
@@ -192,6 +223,9 @@ BuildRequires: pkgconfig(libsystemd)
 BuildRequires: glusterfs-api-devel >= 3.4.0.16
 BuildRequires: glusterfs-devel >= 3.4.0.16
 %endif
+%if %{with_vfs_cephfs}
+BuildRequires: libcephfs-devel
+%endif
 %if %{with_dc}
 BuildRequires: gnutls-devel >= 3.4.7
 # Required by samba-tool to run tests
@@ -241,8 +275,6 @@ BuildRequires: python2-pygpgme
 BuildRequires: krb5-server >= %{required_mit_krb5}
 BuildRequires: bind
 %endif
-
-%{?_cov_buildrequires}
 
 # filter out perl requirements pulled in from examples in the docdir.
 %global __requires_exclude_from ^%{_docdir}/.*$
@@ -407,6 +439,17 @@ Obsoletes: samba4-devel < %{samba_depver}
 The %{name}-devel package contains the header files for the libraries
 needed to develop programs that link against the SMB, RPC and other
 libraries in the Samba suite.
+
+### CEPH
+%if %{with_vfs_cephfs}
+%package vfs-cephfs
+Summary: Samba VFS module for Ceph distributed storage system
+Requires: %{name} = %{samba_depver}
+Requires: %{name}-libs = %{samba_depver}
+
+%description vfs-cephfs
+Samba VFS module for Ceph distributed storage system integration.
+%endif
 
 ### GLUSTER
 %if %{with_vfs_glusterfs}
@@ -743,8 +786,8 @@ and use CTDB instead.
 
 
 %prep
-%autosetup -n samba-%{version}%{pre_release} -v -p1
-%{?_cov_prepare}
+xzcat %{SOURCE0} | gpgv2 --quiet --keyring %{SOURCE2} %{SOURCE1} -
+%autosetup -n samba-%{version}%{pre_release} -p1
 
 %build
 %global _talloc_lib ,talloc,pytalloc,pytalloc-util
@@ -839,7 +882,7 @@ export PYTHON=/usr/bin/python2
         --systemd-winbind-extra=%{_systemd_extra} \
         --systemd-samba-extra=%{_systemd_extra}
 
-%{?_cov_wrap} make %{?_smp_mflags}
+make %{?_smp_mflags}
 
 %install
 PYTHON=/usr/bin/python2 \
@@ -945,7 +988,6 @@ install -m 0755 packaging/NetworkManager/30-winbind-systemd \
 # winbind krb5 locator
 install -d -m 0755 %{buildroot}%{_libdir}/krb5/plugins/libkrb5
 touch %{buildroot}%{_libdir}/krb5/plugins/libkrb5/winbind_krb5_locator.so
-%{?_cov_install}
 
 %if ! %with_dc
 for i in \
@@ -1328,6 +1370,10 @@ rm -rf %{buildroot}
 %{_mandir}/man8/vfs_virusfilter.8*
 %{_mandir}/man8/vfs_worm.8*
 %{_mandir}/man8/vfs_xattr_tdb.8*
+
+%if ! %{with_vfs_glusterfs}
+%exclude %{_mandir}/man8/vfs_glusterfs.8*
+%endif
 
 %attr(775,root,printadmin) %dir /var/lib/samba/drivers
 
@@ -1862,6 +1908,13 @@ rm -rf %{buildroot}
 %if ! %with_libwbclient
 %{_includedir}/samba-4.0/wbclient.h
 %endif # ! with_libwbclient
+
+### VFS-CEPHFS
+%if %{with_vfs_cephfs}
+%files vfs-cephfs
+%{_libdir}/samba/vfs/ceph.so
+%{_mandir}/man8/vfs_ceph.8*
+%endif
 
 ### VFS-GLUSTERFS
 %if %{with_vfs_glusterfs}
@@ -3251,31 +3304,27 @@ rm -rf %{buildroot}
 
 %endif # with_clustering_support
 
-%{?_cov_results_package}
-
 %changelog
-* Fri Sep 22 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 4.10.16-17.0.4.2
-- Rebuild for updated libarchive
+* Tue Jul 25 2023 Andreas Schneider <asn@redhat.com> - 4.10.16-25
+- resolves: #2222250 - Fix netlogon capabilities level 2
 
-* Wed Dec 07 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 4.10.16-17.0.4.1
-- Update from XS 8.3 pre-release updates
-- *** Upstream changelog ***
-- * Tue Sep 20 2022 Lin Liu<lin.liu@citrix.com> - 4.10.16-17.0.4
-- - CP-40720: Remove epel-release from BuildRequires
+* Fri Jan 20 2023 Andreas Schneider <asn@redhat.com> - 4.10.16-24
+- related: #2154364 - Add additional patches for CVE-2022-38023
 
-* Fri Sep 16 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 4.10.16-17.0.3.1
-- Don't build vfs_glusterfs and thus don't buildrequire glusterfs
-- Remove the useless build dependency to epel-release
-- Add gcc to the BuildRequires
+* Wed Dec 21 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-23
+- resolves: #2154364 - Fix CVE-2022-38023
 
-* Wed Mar 9 2022 Lin Liu<lin.liu@citrix.com> - 4.10.16-17.0.3
-- CP-37874: Enable coverity scan
+* Tue Aug 30 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-20
+- resolves: #2119058 - Fix possible segfault in winbind
 
-* Thu Feb 17 2022 Lin Liu<lin.liu@citrix.com> - 4.10.16-17.0.2
-- CP-38764: Rebuild
+* Tue May 10 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-19
+- resolves: #2081649 - Fix idmap_rfc2307 and idmap_nss returning wrong
+                       mapping for uid/gid conflict
 
-* Wed Jan 26 2022 Lin Liu<lin.liu@citrix.com> - 4.10.16-17.0.1
-- CP-38764: Enforce kerberos and disable fallback if not allowed
+* Tue Jan 25 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-18
+- resolves: #2034800 - Fix usermap script regression caused by CVE-2020-25717
+- resolves: #2036595 - Fix MIT realm regression caused by CVE-2020-25717
+- resolves: #2046148 - Fix CVE-2021-44142
 
 * Mon Nov 15 2021 Andreas Schneider <asn@redhat.com> - 4.10.16-17
 - related: #2019673 - Add missing checks for IPA DC server role
@@ -4561,7 +4610,7 @@ rm -rf %{buildroot}
 - Numerous improvements and bugfixes included
 - package libsmbsharemodes too
 - remove smbldap-tools as they are already packaged separately in Fedora
-- Fix bug 245506
+- Fix bug 245506 
 
 * Tue Oct 2 2007 Simo Sorce <ssorce@redhat.com> 3.0.26a-1.fc8
 - rebuild with AD DNS Update support
@@ -4963,7 +5012,7 @@ rm -rf %{buildroot}
   bugzilla #121356
 
 * Mon Apr 5 2004 Jay Fenlason <fenlason@redhat.com> 3.0.3-2.pre2
-- New upstream version
+- New upstream version  
 - Updated configure line to remove --with-fhs and to explicitly set all
   the directories that --with-fhs was setting.  We were overriding most of
   them anyway.  This closes #118598
@@ -4981,7 +5030,7 @@ rm -rf %{buildroot}
 * Mon Feb 16 2004 Jay Fenlason <fenlason@redhat.com> 3.0.2a-1
 - Upgrade to 3.0.2a
 
-* Mon Feb 16 2004 Karsten Hopp <karsten@redhat.de> 3.0.2-7
+* Mon Feb 16 2004 Karsten Hopp <karsten@redhat.de> 3.0.2-7 
 - fix ownership in -common package
 
 * Fri Feb 13 2004 Elliot Lee <sopwith@redhat.com>
@@ -5117,7 +5166,7 @@ rm -rf %{buildroot}
 
 * Fri Jul 26 2002 Trond Eivind Glomsrød <teg@redhat.com> 2.2.5-7
 - Enable VFS support and compile the "recycling" module (#69796)
-- more selective includes of the examples dir
+- more selective includes of the examples dir 
 
 * Tue Jul 23 2002 Trond Eivind Glomsrød <teg@redhat.com> 2.2.5-6
 - Fix the lpq parser for better handling of LPRng systems (#69352)
@@ -5138,11 +5187,11 @@ rm -rf %{buildroot}
 - 2.2.5
 
 * Fri Jun 14 2002 Trond Eivind Glomsrød <teg@redhat.com> 2.2.4-5
-- Move the post/preun of winbind into the -common subpackage,
+- Move the post/preun of winbind into the -common subpackage, 
   where the script is (#66128)
 
 * Tue Jun  4 2002 Trond Eivind Glomsrød <teg@redhat.com> 2.2.4-4
-- Fix pidfile locations so it runs properly again (2.2.4
+- Fix pidfile locations so it runs properly again (2.2.4 
   added a new directtive - #65007)
 
 * Thu May 23 2002 Tim Powers <timp@redhat.com>
@@ -5163,7 +5212,7 @@ rm -rf %{buildroot}
 - Add libsmbclient.a w/headerfile for KDE (#62202)
 
 * Tue Mar 26 2002 Trond Eivind Glomsrød <teg@redhat.com> 2.2.3a-4
-- Make the logrotate script look the correct place for the pid files
+- Make the logrotate script look the correct place for the pid files 
 
 * Thu Mar 14 2002 Nalin Dahyabhai <nalin@redhat.com> 2.2.3a-3
 - include interfaces.o in pam_smbpass.so, which needs symbols from interfaces.o
@@ -5186,12 +5235,12 @@ rm -rf %{buildroot}
 
 * Tue Nov 13 2001 Trond Eivind Glomsrød <teg@redhat.com> 2.2.2-6
 - Move winbind files to samba-common. Add separate initscript for
-  winbind
+  winbind 
 - Fixes for winbind - protect global variables with mutex, use
   more secure getenv
 
 * Thu Nov  8 2001 Trond Eivind Glomsrød <teg@redhat.com> 2.2.2-5
-- Teach smbadduser about "getent passwd"
+- Teach smbadduser about "getent passwd" 
 - Fix more pid-file references
 - Add (conditional) winbindd startup to the initscript, configured in
   /etc/sysconfig/samba
@@ -5222,8 +5271,8 @@ rm -rf %{buildroot}
   encrypted passwords off the choice is available. (#31351)
 
 * Wed Aug  8 2001 Trond Eivind Glomsrød <teg@redhat.com>
-- Use /var/cache/samba instead of /var/lock/samba
-- Remove "domain controller" keyword from smb.conf, it's
+- Use /var/cache/samba instead of /var/lock/samba 
+- Remove "domain controller" keyword from smb.conf, it's 
   deprecated (from #13704)
 - Sync some examples with smb.conf.default
 - Fix password synchronization (#16987)
@@ -5263,26 +5312,26 @@ rm -rf %{buildroot}
 * Fri Jun  8 2001 Preston Brown <pbrown@redhat.com>
 - enable encypted passwords by default
 
-* Thu Jun  7 2001 Helge Deller <hdeller@redhat.de>
+* Thu Jun  7 2001 Helge Deller <hdeller@redhat.de> 
 - build as 2.2.0-1 release
 - skip the documentation-directories docbook, manpages and yodldocs
 - don't include *.sgml documentation in package
 - moved codepage-directory to /usr/share/samba/codepages
-- make it compile with glibc-2.2.3-10 and kernel-headers-2.4.2-2
+- make it compile with glibc-2.2.3-10 and kernel-headers-2.4.2-2   
 
-* Mon May 21 2001 Helge Deller <hdeller@redhat.de>
+* Mon May 21 2001 Helge Deller <hdeller@redhat.de> 
 - updated to samba 2.2.0
 - moved codepages to %%{_datadir}/samba/codepages
 - use all available CPUs for building rpm packages
 - use %%{_xxx} defines at most places in spec-file
 - "License:" replaces "Copyright:"
 - dropped excludearch sparc
-- de-activated japanese patches 100 and 200 for now
+- de-activated japanese patches 100 and 200 for now 
   (they need to be fixed and tested wth 2.2.0)
 - separated swat.desktop file from spec-file and added
   german translations
 - moved /etc/sysconfig/samba to a separate source-file
-- use htmlview instead of direct call to netscape in
+- use htmlview instead of direct call to netscape in 
   swat.desktop-file
 
 * Mon May  7 2001 Bill Nottingham <notting@redhat.com>
@@ -5372,7 +5421,7 @@ rm -rf %{buildroot}
 
 * Sat Jul 15 2000 Bill Nottingham <notting@redhat.com>
 - move initscript back
-- remove 'Using Samba' book from %%doc
+- remove 'Using Samba' book from %%doc 
 - move stuff to /etc/samba (#13708)
 - default configuration tweaks (#13704)
 - some logrotate tweaks
@@ -5551,7 +5600,7 @@ rm -rf %{buildroot}
 * Tue Mar 23 1999 Bill Nottingham <notting@redhat.com>
 - logrotate changes
 
-* Sun Mar 21 1999 Cristian Gafton <gafton@redhat.com>
+* Sun Mar 21 1999 Cristian Gafton <gafton@redhat.com> 
 - auto rebuild in the new build environment (release 3)
 
 * Fri Mar 19 1999 Preston Brown <pbrown@redhat.com>
