@@ -6,7 +6,7 @@
 # ctdb is enabled by default, you can disable it with: --without clustering
 %bcond_without clustering
 
-%define main_release 17
+%define main_release 25
 
 %define samba_version 4.10.16
 %define talloc_version 2.1.16
@@ -3305,6 +3305,27 @@ rm -rf %{buildroot}
 %endif # with_clustering_support
 
 %changelog
+* Tue Jul 25 2023 Andreas Schneider <asn@redhat.com> - 4.10.16-25
+- resolves: #2222250 - Fix netlogon capabilities level 2
+
+* Fri Jan 20 2023 Andreas Schneider <asn@redhat.com> - 4.10.16-24
+- related: #2154364 - Add additional patches for CVE-2022-38023
+
+* Wed Dec 21 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-23
+- resolves: #2154364 - Fix CVE-2022-38023
+
+* Tue Aug 30 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-20
+- resolves: #2119058 - Fix possible segfault in winbind
+
+* Tue May 10 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-19
+- resolves: #2081649 - Fix idmap_rfc2307 and idmap_nss returning wrong
+                       mapping for uid/gid conflict
+
+* Tue Jan 25 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-18
+- resolves: #2034800 - Fix usermap script regression caused by CVE-2020-25717
+- resolves: #2036595 - Fix MIT realm regression caused by CVE-2020-25717
+- resolves: #2046148 - Fix CVE-2021-44142
+
 * Mon Nov 15 2021 Andreas Schneider <asn@redhat.com> - 4.10.16-17
 - related: #2019673 - Add missing checks for IPA DC server role
 
