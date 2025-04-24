@@ -134,6 +134,9 @@ Source201: README.downgrade
 # Generate the patchset using: git fpstd -N > samba-4.10-redhat.patch
 Patch0:    samba-4.10-redhat.patch
 
+# XCP-ng: patch coming from XenServer packaging
+Patch2: 0001-CP-38764-Disable-kerberos-auth-fallback.patch
+
 # Set the libldb requirement back to 1.5.4, we don't need a newer version as
 # we only build Samba FS.
 Patch1000:    libldb-require-version-1.5.4.patch
@@ -3306,6 +3309,7 @@ rm -rf %{buildroot}
 %changelog
 * Thu Apr 24 2025 Yann Dirson <yann.dirson@vates.tech> - 4.10.16-17.0.4.2.0.rework
 - Revert XS changes to prepare for merging new upstream, keeping changelog
+  and kerberos config changes
 
 * Fri Sep 22 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 4.10.16-17.0.4.2
 - Rebuild for updated libarchive

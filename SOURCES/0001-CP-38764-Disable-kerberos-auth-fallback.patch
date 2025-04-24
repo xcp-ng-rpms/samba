@@ -1,0 +1,128 @@
+From 8de5b4bd15347b54662c2c11958bcd479a11d040 Mon Sep 17 00:00:00 2001
+From: Lin Liu <lin.liu@citrix.com>
+Date: Fri, 28 Jan 2022 03:05:25 +0000
+Subject: [PATCH] CP-38764: Disable kerberos auth fallback
+
+Introduce configure item `allow kerberos fallback` and default to `no`
+If set to no, will not fallback to other protocols on kerberos auth fail
+
+Signed-off-by: Lin Liu <lin.liu@citrix.com>
+---
+ auth/gensec/spnego.c                                   | 16 ++++++++++++++++
+ docs-xml/smbdotconf/security/allowkerberosfallback.xml | 12 ++++++++++++
+ libcli/util/ntstatus_err_table.txt                     |  6 ++++++
+ source3/libads/krb5_errs.c                             |  1 +
+ source3/libnet/libnet_join.c                           |  3 ++-
+ source3/winbindd/winbindd_pam.c                        |  3 ++-
+ 6 files changed, 39 insertions(+), 2 deletions(-)
+ create mode 100644 docs-xml/smbdotconf/security/allowkerberosfallback.xml
+
+diff --git a/auth/gensec/spnego.c b/auth/gensec/spnego.c
+index 2cb8036..035203c 100644
+--- a/auth/gensec/spnego.c
++++ b/auth/gensec/spnego.c
+@@ -373,6 +373,14 @@ static NTSTATUS gensec_spnego_create_negTokenInit_step(
+ 			 */
+ 			return status;
+ 		}
++		/*
++		 * Skip ntlmssp for security reason
++		 */
++		if (strcasecmp(next, "ntlmssp") == 0 &&
++				!lpcfg_allow_kerberos_auth_fallback(gensec_security->settings->lp_ctx)) {
++			DEBUG(10, ("skip ntlmssp for security reason"));
++			return status;
++		}
+ 
+ 		/*
+ 		 * Pretend we never started it
+@@ -606,6 +614,14 @@ static NTSTATUS gensec_spnego_client_negTokenInit_step(
+ 			return status;
+ 		}
+ 		/*
++		 * Skip ntlmssp for security reason
++		 */
++		if (strcasecmp(next, "ntlmssp") == 0 &&
++				!lpcfg_allow_kerberos_auth_fallback(gensec_security->settings->lp_ctx)) {
++			DEBUG(10, ("skip ntlmssp for security reason"));
++			return status;
++		}
++		/*
+ 		 * Pretend we never started it.
+ 		 */
+ 		gensec_spnego_reset_sub_sec(spnego_state);
+diff --git a/docs-xml/smbdotconf/security/allowkerberosfallback.xml b/docs-xml/smbdotconf/security/allowkerberosfallback.xml
+new file mode 100644
+index 0000000..bacc365
+--- /dev/null
++++ b/docs-xml/smbdotconf/security/allowkerberosfallback.xml
+@@ -0,0 +1,12 @@
++<samba:parameter name="allow kerberos auth fallback"
++                 context="G"
++                 type="boolean"
++                 xmlns:samba="http://www.samba.org/samba/DTD/samba-doc">
++<description>
++	<para>If set to no (the default), winbindd does not fallback
++	to any other protocols for authentication, set this parameter
++	to <value type="example">yes</value> to allow fallback on failure
++	</para>
++</description>
++<value type="default">no</value>
++</samba:parameter>
+diff --git a/libcli/util/ntstatus_err_table.txt b/libcli/util/ntstatus_err_table.txt
+index 28fef3e..3e4f502 100644
+--- a/libcli/util/ntstatus_err_table.txt
++++ b/libcli/util/ntstatus_err_table.txt
+@@ -12627,3 +12627,9 @@ STATUS_VHD_DIFFERENCING_CHAIN_ERROR_IN_PARENT
+ 	
+ 
+ The chain of virtual hard disks is inaccessible. There was an error opening a virtual hard disk further up the chain.
++
++0xC03A001A
++
++STATUS_KDCREP_MODIFIED
++	
++KDC reply did not match expectations, Probably cuased by password expired, locked out, etc.
+diff --git a/source3/libads/krb5_errs.c b/source3/libads/krb5_errs.c
+index 0c2ada5..fa142e6 100644
+--- a/source3/libads/krb5_errs.c
++++ b/source3/libads/krb5_errs.c
+@@ -39,6 +39,7 @@ static const struct {
+ 	{KRB5KDC_ERR_KEY_EXPIRED, NT_STATUS_PASSWORD_EXPIRED},
+ #endif
+ 	{25, NT_STATUS_PASSWORD_EXPIRED}, /* FIXME: bug in heimdal 0.7 krb5_get_init_creds_password (Inappropriate ioctl for device (25)) */
++	{KRB5_KDCREP_MODIFIED, NT_STATUS_KDCREP_MODIFIED}, /* FIXME: bug in heimdal 0.7 krb5_get_init_creds_password (Inappropriate ioctl for device (25)) */
+ 	{KRB5KDC_ERR_NULL_KEY, NT_STATUS_LOGON_FAILURE},
+ 	{KRB5KDC_ERR_POLICY, NT_STATUS_INVALID_WORKSTATION},
+ 	{KRB5KDC_ERR_PREAUTH_FAILED, NT_STATUS_LOGON_FAILURE},
+diff --git a/source3/libnet/libnet_join.c b/source3/libnet/libnet_join.c
+index de558be..ae8cb51 100644
+--- a/source3/libnet/libnet_join.c
++++ b/source3/libnet/libnet_join.c
+@@ -1069,7 +1069,8 @@ static NTSTATUS libnet_join_connect_dc_ipc(const char *dc,
+ 		flags |= CLI_FULL_CONNECTION_USE_KERBEROS;
+ 	}
+ 
+-	if (use_kerberos && pass) {
++	if (use_kerberos && pass && lp_allow_kerberos_auth_fallback()) {
++		DEBUG(10, ("Join domain allowed kerberos fallback"));
+ 		flags |= CLI_FULL_CONNECTION_FALLBACK_AFTER_KERBEROS;
+ 	}
+ 
+diff --git a/source3/winbindd/winbindd_pam.c b/source3/winbindd/winbindd_pam.c
+index deed81d..b9ce544 100644
+--- a/source3/winbindd/winbindd_pam.c
++++ b/source3/winbindd/winbindd_pam.c
+@@ -2029,7 +2029,8 @@ enum winbindd_result winbindd_dual_pam_auth(struct winbindd_domain *domain,
+ 			goto done;
+ 		}
+ 
+-		if (state->request->flags & WBFLAG_PAM_FALLBACK_AFTER_KRB5) {
++		if (state->request->flags & WBFLAG_PAM_FALLBACK_AFTER_KRB5 &&
++				lp_allow_kerberos_auth_fallback()){
+ 			DEBUG(3,("falling back to samlogon\n"));
+ 			goto sam_logon;
+ 		} else {
+-- 
+1.8.3.1
+
