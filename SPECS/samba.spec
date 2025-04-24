@@ -6,6 +6,9 @@
 # ctdb is enabled by default, you can disable it with: --without clustering
 %bcond_without clustering
 
+# XCP-ng build condition
+%bcond_without xcpng
+
 %define main_release 17.0.4.2.0.rework
 
 %define samba_version 4.10.16
@@ -49,6 +52,10 @@
 %endif
 %endif
 
+# XCP-ng: don't build vfs_glusterfs
+%if %{with xcpng}
+%global with_vfs_glusterfs 0
+%else
 %global with_vfs_glusterfs 1
 %if 0%{?rhel}
 %global with_vfs_glusterfs 0
@@ -57,10 +64,16 @@
 %global with_vfs_glusterfs 1
 %endif
 %endif
+%endif
 
+# XCP-ng: don't build with intel_aes_accel, following XS choice
+%if %{with xcpng}
+%global with_intel_aes_accel 0
+%else
 %global with_intel_aes_accel 0
 %ifarch x86_64
 %global with_intel_aes_accel 1
+%endif
 %endif
 
 %global libwbc_alternatives_version 0.15
@@ -3314,6 +3327,8 @@ rm -rf %{buildroot}
 * Thu Apr 24 2025 Yann Dirson <yann.dirson@vates.tech> - 4.10.16-17.0.4.2.0.rework
 - Revert XS changes to prepare for merging new upstream, keeping changelog
   and kerberos config changes
+- By Lucas Ravagnier <lucas.ravagnier@vates.tech>:
+  - Use a bcond to enable XCP-ng packaging tweaks while preserving upstream spec content.
 
 * Fri Sep 22 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 4.10.16-17.0.4.2
 - Rebuild for updated libarchive
