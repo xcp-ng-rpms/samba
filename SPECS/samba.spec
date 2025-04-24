@@ -9,7 +9,7 @@
 # XCP-ng build condition
 %bcond_without xcpng
 
-%define main_release 17.0.4.2.0.rework
+%define main_release 25.1
 
 %define samba_version 4.10.16
 %define talloc_version 2.1.16
@@ -3324,11 +3324,33 @@ rm -rf %{buildroot}
 %endif # with_clustering_support
 
 %changelog
-* Thu Apr 24 2025 Yann Dirson <yann.dirson@vates.tech> - 4.10.16-17.0.4.2.0.rework
+* Thu Apr 24 2025 Yann Dirson <yann.dirson@vates.tech> - 4.10.16-25.1
 - Revert XS changes to prepare for merging new upstream, keeping changelog
   and kerberos config changes
 - By Lucas Ravagnier <lucas.ravagnier@vates.tech>:
+  - Import samba-4.10.16-25.el7_9
   - Use a bcond to enable XCP-ng packaging tweaks while preserving upstream spec content.
+  - *** Upstream changelog ***
+    * Tue Jul 25 2023 Andreas Schneider <asn@redhat.com> - 4.10.16-25
+    - resolves: #2222250 - Fix netlogon capabilities level 2
+
+    * Fri Jan 20 2023 Andreas Schneider <asn@redhat.com> - 4.10.16-24
+    - related: #2154364 - Add additional patches for CVE-2022-38023
+
+    * Wed Dec 21 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-23
+    - resolves: #2154364 - Fix CVE-2022-38023
+
+    * Tue Aug 30 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-20
+    - resolves: #2119058 - Fix possible segfault in winbind
+
+    * Tue May 10 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-19
+    - resolves: #2081649 - Fix idmap_rfc2307 and idmap_nss returning wrong
+               mapping for uid/gid conflict
+
+    * Tue Jan 25 2022 Andreas Schneider <asn@redhat.com> - 4.10.16-18
+    - resolves: #2034800 - Fix usermap script regression caused by CVE-2020-25717
+    - resolves: #2036595 - Fix MIT realm regression caused by CVE-2020-25717
+    - resolves: #2046148 - Fix CVE-2021-44142
 
 * Fri Sep 22 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 4.10.16-17.0.4.2
 - Rebuild for updated libarchive
