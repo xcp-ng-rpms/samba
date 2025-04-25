@@ -1377,6 +1377,10 @@ rm -rf %{buildroot}
 %{_mandir}/man8/vfs_worm.8*
 %{_mandir}/man8/vfs_xattr_tdb.8*
 
+%if ! %{with_vfs_glusterfs}
+%exclude %{_mandir}/man8/vfs_glusterfs.8*
+%endif
+
 %attr(775,root,printadmin) %dir /var/lib/samba/drivers
 
 ### CLIENT
