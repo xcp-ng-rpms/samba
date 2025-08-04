@@ -1,6 +1,6 @@
-%global package_speccommit 34d27b9b91d85b52813cec55f7318ab9bce33efd
+%global package_speccommit e11901ae25877705d66c120759b613a033c8bcb0
 %global usver 4.10.16
-%global xsver 17.0.4
+%global xsver 17.0.7
 %global xsrel %{xsver}%{?xscount}%{?xshash}
 %global package_srccommit ee766dffdd8b95
 # rpmbuild --rebuild --with testsuite --without clustering samba.src.rpm
@@ -64,6 +64,8 @@
 %if %{with clustering}
 %global with_clustering_support 1
 %endif
+
+%bcond_with python
 
 %define __python %{__python2}
 %global python_sitearch /usr/lib64/python2.7/site-packages
@@ -139,14 +141,11 @@ Obsoletes: samba-swat < %{samba_depver}
 Provides: samba4-swat = %{samba_depver}
 Obsoletes: samba4-swat < %{samba_depver}
 
-BuildRequires: avahi-devel
-BuildRequires: cups-devel
 BuildRequires: dbus-devel
 BuildRequires: docbook-style-xsl
 BuildRequires: e2fsprogs-devel
 BuildRequires: gawk
 BuildRequires: gnupg2
-BuildRequires: jansson-devel
 BuildRequires: krb5-devel >= %{required_mit_krb5}
 BuildRequires: libacl-devel
 BuildRequires: libaio-devel
@@ -421,21 +420,6 @@ Provides: samba-glusterfs = %{samba_depver}
 Samba VFS module for GlusterFS integration.
 %endif
 
-### KRB5-PRINTING
-%package krb5-printing
-Summary: Samba CUPS backend for printing with Kerberos
-Requires(pre): %{name}-client
-Requires: %{name}-client
-Requires: %{name}-client-libs
-
-Requires(post): %{_sbindir}/update-alternatives
-Requires(postun): %{_sbindir}/update-alternatives
-
-%description krb5-printing
-If you need Kerberos for print jobs to a printer connection to cups via the SMB
-backend, then you need to install that package. It will allow cups to access
-the Kerberos credentials cache of the user issuing the print job.
-
 ### LIBS
 %package libs
 Summary: Samba libraries
@@ -498,6 +482,7 @@ The libwbclient-devel package provides developer tools for the wbclient
 library.
 %endif # with_libwbclient
 
+%if %{with python}
 ### PYTHON
 %package python
 Summary: Samba Python libraries
@@ -530,6 +515,7 @@ Requires: samba-python = %{samba_depver}
 %description python-test
 The %{name}-python-test package contains the Python libraries used by the test suite of Samba.
 If you want to run full set of Samba tests, you need to install this package.
+%endif
 
 %if %{with_dc}
 %package python-dc
@@ -833,7 +819,13 @@ export PYTHON=/usr/bin/python2
         --systemd-smb-extra=%{_systemd_extra} \
         --systemd-nmb-extra=%{_systemd_extra} \
         --systemd-winbind-extra=%{_systemd_extra} \
+        --without-json \
+%if %{without python}
+        --systemd-samba-extra=%{_systemd_extra} \
+        --disable-python
+%else
         --systemd-samba-extra=%{_systemd_extra}
+%endif
 
 %{?_cov_wrap} make %{?_smp_mflags}
 
@@ -879,9 +871,6 @@ then
     echo "Expected libwbclient version not found, please check if version has changed."
     exit -1
 fi
-
-
-touch %{buildroot}%{_libexecdir}/samba/cups_backend_smb
 
 # Install other stuff
 install -d -m 0755 %{buildroot}%{_sysconfdir}/logrotate.d
@@ -1020,6 +1009,7 @@ for i in \
     %{python_sitearch}/samba/tests/samba_tool/schema.py* \
     %{python_sitearch}/samba/tests/samdb_api.py* \
     %{python_sitearch}/samba/tests/smb.py* \
+    %{python_sitearch}/samba/third_party/__init__.py* \
     %{_unitdir}/samba.service \
     ; do
     rm -f %{buildroot}$i
@@ -1033,6 +1023,9 @@ done
 # FIXME
 find %{buildroot}%{python2_sitearch} -name "*.pyc" -print -delete
 
+# Remove unpackaged files
+rm -f %{buildroot}%{_libexecdir}/samba/smbspool_krb5_wrapper
+rm -f %{buildroot}%{_mandir}/man8/smbspool_krb5_wrapper.8*
 
 %if %{with testsuite}
 %check
@@ -1064,15 +1057,11 @@ if [ -d /var/cache/samba ]; then
     ln -sf /var/cache/samba /var/lib/samba/
 fi
 
-%post client
-%{_sbindir}/update-alternatives --install %{_libexecdir}/samba/cups_backend_smb \
-    cups_backend_smb \
-    %{_bindir}/smbspool 10
-
-%postun client
-if [ $1 -eq 0 ] ; then
-    %{_sbindir}/update-alternatives --remove cups_backend_smb %{_bindir}/smbspool
-fi
+sed -i -e '/printing[[:space:]]*=[[:space:]]*cups/d;' \
+    -e '/printcap[[:space:]]*name[[:space:]]*=[[:space:]]*cups/d;' \
+    -e '/load[[:space:]]*printers[[:space:]]*=[[:space:]]*yes/d;' \
+    -e '/cups[[:space:]]*options[[:space:]]*=[[:space:]]*raw/d' \
+    %{_sysconfdir}/samba/smb.conf
 
 %post client-libs -p /sbin/ldconfig
 
@@ -1096,16 +1085,6 @@ fi
 %postun dc
 %systemd_postun_with_restart samba.service
 %endif
-
-%post krb5-printing
-%{_sbindir}/update-alternatives --install %{_libexecdir}/samba/cups_backend_smb \
-	cups_backend_smb \
-	%{_libexecdir}/samba/smbspool_krb5_wrapper 50
-
-%postun krb5-printing
-if [ $1 -eq 0 ] ; then
-	%{_sbindir}/update-alternatives --remove cups_backend_smb %{_libexecdir}/samba/smbspool_krb5_wrapper
-fi
 
 %post libs -p /sbin/ldconfig
 
@@ -1355,8 +1334,6 @@ rm -rf %{buildroot}
 %{_bindir}/smbspool
 %{_bindir}/smbtar
 %{_bindir}/smbtree
-%dir %{_libexecdir}/samba
-%ghost %{_libexecdir}/samba/cups_backend_smb
 %{_mandir}/man1/dbwrap_tool.1*
 %{_mandir}/man1/nmblookup.1*
 %{_mandir}/man1/oLschema2ldif.1*
@@ -1785,7 +1762,6 @@ rm -rf %{buildroot}
 %{_includedir}/samba-4.0/netapi.h
 %{_includedir}/samba-4.0/param.h
 %{_includedir}/samba-4.0/passdb.h
-%{_includedir}/samba-4.0/policy.h
 %{_includedir}/samba-4.0/rpc_common.h
 %{_includedir}/samba-4.0/samba/session.h
 %{_includedir}/samba-4.0/samba/version.h
@@ -1870,12 +1846,6 @@ rm -rf %{buildroot}
 %{_mandir}/man8/vfs_glusterfs.8*
 %endif
 
-### KRB5-PRINTING
-%files krb5-printing
-%defattr(-,root,root)
-%attr(0700,root,root) %{_libexecdir}/samba/smbspool_krb5_wrapper
-%{_mandir}/man8/smbspool_krb5_wrapper.8*
-
 ### LIBS
 %files libs
 %defattr(-,root,root)
@@ -1887,9 +1857,11 @@ rm -rf %{buildroot}
 %{_libdir}/samba/libauth4-samba4.so
 %{_libdir}/samba/libauth-unix-token-samba4.so
 %{_libdir}/samba/libdcerpc-samba4.so
-%{_libdir}/samba/libnon-posix-acls-samba4.so
+%if %{with python}
 %{_libdir}/samba/libsamba-net-samba4.so
 %{_libdir}/samba/libsamba-python-samba4.so
+%endif
+%{_libdir}/samba/libnon-posix-acls-samba4.so
 %{_libdir}/samba/libshares-samba4.so
 %{_libdir}/samba/libsmbpasswdparser-samba4.so
 %{_libdir}/samba/libxattr-tdb-samba4.so
@@ -1963,6 +1935,7 @@ rm -rf %{buildroot}
 %{_mandir}/man1/pidl*
 %{_mandir}/man3/Parse::Pidl*
 
+%if %{with python}
 ### PYTHON
 %files python
 %defattr(-,root,root,-)
@@ -2108,6 +2081,7 @@ rm -rf %{buildroot}
 
 %dir %{python_sitearch}/samba/third_party
 %{python_sitearch}/samba/third_party/__init__.py*
+%endif
 
 %if %{with_dc}
 %files python-dc
@@ -2149,6 +2123,8 @@ rm -rf %{buildroot}
 %{python_sitearch}/samba/web_server/__init__.py*
 %endif
 
+
+%if %{with python}
 %files python-test
 %defattr(-,root,root,-)
 %dir %{python_sitearch}/samba/tests
@@ -2295,6 +2271,7 @@ rm -rf %{buildroot}
 %{python_sitearch}/samba/tests/samba_tool/user_wdigest.py*
 %{python_sitearch}/samba/tests/samba_tool/visualize.py*
 %{python_sitearch}/samba/tests/samba_tool/visualize_drs.py*
+%endif
 
 ### TEST
 %files test
@@ -2303,12 +2280,10 @@ rm -rf %{buildroot}
 %{_bindir}/locktest
 %{_bindir}/masktest
 %{_bindir}/ndrdump
-%{_bindir}/smbtorture
 %{_mandir}/man1/gentest.1*
 %{_mandir}/man1/locktest.1*
 %{_mandir}/man1/masktest.1*
 %{_mandir}/man1/ndrdump.1*
-%{_mandir}/man1/smbtorture.1*
 %{_mandir}/man1/vfstest.1*
 
 %if %{with testsuite}
@@ -3254,6 +3229,15 @@ rm -rf %{buildroot}
 %{?_cov_results_package}
 
 %changelog
+* Thu Jan 02 2025 Deli Zhang <deli.zhang@cloud.com> - 4.10.16-17.0.7
+- CP-50277: Remove unused cups package
+
+* Mon Sep 9 2024 Lin Liu<lin.liu@citrix.com> - 4.10.16-17.0.6
+- CP-50735: Remove avahi support
+
+* Wed Aug 7 2024 Lin Liu<lin.liu@citrix.com> - 4.10.16-17.0.5
+- CP-50670: Remove python and json support
+
 * Tue Sep 20 2022 Lin Liu<lin.liu@citrix.com> - 4.10.16-17.0.4
 - CP-40720: Remove epel-release from BuildRequires
 
