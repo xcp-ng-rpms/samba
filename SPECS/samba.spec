@@ -1,6 +1,6 @@
-%global package_speccommit e11901ae25877705d66c120759b613a033c8bcb0
+%global package_speccommit 03faca746a2e01d763fdc3d8e9e05d3a2ea80faf
 %global usver 4.10.16
-%global xsver 17.0.7
+%global xsver 17.0.8
 %global xsrel %{xsver}%{?xscount}%{?xshash}
 %global package_srccommit ee766dffdd8b95
 # rpmbuild --rebuild --with testsuite --without clustering samba.src.rpm
@@ -74,7 +74,7 @@
 
 Name:           samba
 Version:        %{samba_version}
-Release:        %{?xsrel}%{?dist}
+Release: %{?xsrel}%{?dist}
 
 Epoch:          0
 
@@ -89,6 +89,7 @@ Source0: samba-4.10.16.tar.gz
 Patch0: samba-4.10-redhat.patch
 Patch1: libldb-require-version-1.5.4.patch
 Patch2: 0001-CP-38764-Disable-kerberos-auth-fallback.patch
+Patch3: enctypes-support-machine-account.patch
 
 # Red Hat specific replacement-files
 Source10: samba.log
@@ -3229,6 +3230,9 @@ rm -rf %{buildroot}
 %{?_cov_results_package}
 
 %changelog
+* Tue Apr 01 2025 Lin Liu <Lin.Liu01@cloud.com> - 4.10.16-17.0.8
+- CA-408843: enctypes support machine account
+
 * Thu Jan 02 2025 Deli Zhang <deli.zhang@cloud.com> - 4.10.16-17.0.7
 - CP-50277: Remove unused cups package
 
