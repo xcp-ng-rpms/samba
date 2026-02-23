@@ -9,7 +9,7 @@
 # XCP-ng build condition
 %bcond_without xcpng
 
-%define main_release 25.2
+%define main_release 25.3
 
 %define samba_version 4.10.16
 %define talloc_version 2.1.16
@@ -3299,6 +3299,9 @@ rm -rf %{buildroot}
 %endif # with_clustering_support
 
 %changelog
+* Fri Jan 23 2026 Philippe Coval <philippe.coval@vates.tech> - 4.10.16-25.3
+- Rebuild with openssl-3
+
 * Mon Aug 4 2025 Gaëtan Lehmann <gaetan.lehmann@vates.tech> - 4.10.16-25.2
 - Apply packaging changes from XenServer's samba-4.10.16-17.0.{4-8}
 - *** Upstream changelog ***
