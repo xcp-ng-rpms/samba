@@ -142,7 +142,7 @@
 
 Name:           samba
 Version:        %{samba_version}
-Release: %{?xsrel}.1%{?dist}
+Release: %{?xsrel}.2%{?dist}
 
 Epoch: 0
 
@@ -1654,8 +1654,9 @@ fi
 %doc packaging/README.downgrade
 %{_bindir}/smbstatus
 %{_sbindir}/eventlogadm
-%{_sbindir}/nmbd
-%{_sbindir}/smbd
+# XCP-ng: remove server as feature is not supported, it will harden the security of the system
+%exclude %{_sbindir}/nmbd
+%exclude %{_sbindir}/smbd
 %if %{with dc} || %{with testsuite}
 # This is only used by vfs_dfs_samba4
 %{_libdir}/samba/libdfs-server-ad-samba4.so
@@ -3804,6 +3805,9 @@ fi
 
 
 %changelog
+* Tue Jul 21 2026 Philippe Coval <philippe.coval@vates.tech> - 4.23.3-2.2
+- Exclude unsupported smdb ndbd from server package
+
 * Thu Jul 16 2026 Philippe Coval <philippe.coval@vates.tech> - 4.23.3-2.1
 - Update from XS 8.3
 - *** Upstream changelog ***
