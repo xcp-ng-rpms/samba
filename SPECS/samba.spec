@@ -142,7 +142,7 @@
 
 Name:           samba
 Version:        %{samba_version}
-Release: %{?xsrel}.1%{?dist}
+Release: %{?xsrel}.2%{?dist}
 
 Epoch: 0
 
@@ -1552,8 +1552,9 @@ export SAMBA_DCERPCD_DONT_LOG_STDOUT=1
 %endif
 
 %post
-%systemd_post smb.service
-%systemd_post nmb.service
+# XCP-ng: remove server as feature is not supported, it will harden the security of the system
+# %%systemd_post smb.service
+# %%systemd_post nmb.service
 
 %preun
 %systemd_preun smb.service
@@ -1654,8 +1655,16 @@ fi
 %doc packaging/README.downgrade
 %{_bindir}/smbstatus
 %{_sbindir}/eventlogadm
-%{_sbindir}/nmbd
-%{_sbindir}/smbd
+
+# XCP-ng: remove server as feature is not supported, it will harden the security of the system
+%dir %{_libexecdir}/samba
+%exclude %{_sbindir}/nmbd
+%exclude %{_unitdir}/nmb.service
+%exclude %{_sbindir}/smbd
+%exclude %{_unitdir}/smb.service
+%exclude %{_libexecdir}/samba/samba-bgqd
+%exclude %{_unitdir}/samba-bgqd.service
+
 %if %{with dc} || %{with testsuite}
 # This is only used by vfs_dfs_samba4
 %{_libdir}/samba/libdfs-server-ad-samba4.so
@@ -1711,12 +1720,6 @@ fi
 %{_libdir}/samba/vfs/nfs4acl_xattr.so
 %endif
 
-%dir %{_libexecdir}/samba
-%{_libexecdir}/samba/samba-bgqd
-
-%{_unitdir}/nmb.service
-%{_unitdir}/smb.service
-%{_unitdir}/samba-bgqd.service
 %dir %{_sysconfdir}/openldap/schema
 %config %{_sysconfdir}/openldap/schema/samba.schema
 %config(noreplace) %{_sysconfdir}/pam.d/samba
@@ -3804,6 +3807,9 @@ fi
 
 
 %changelog
+* Tue Jul 21 2026 Philippe Coval <philippe.coval@vates.tech> - 4.23.3-2.2
+- Exclude unsupported smdb ndbd from server package
+
 * Thu Jul 16 2026 Philippe Coval <philippe.coval@vates.tech> - 4.23.3-2.1
 - Update from XS 8.3
 - *** Upstream changelog ***
