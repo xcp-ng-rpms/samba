@@ -1,6 +1,6 @@
-%global package_speccommit c513d7e011e2c06dc3b1b34191a2f33d3eecd708
+%global package_speccommit 39d3e5a4977562164c8b771f7be223a332f09a7e
 %global usver 4.23.3
-%global xsver 1
+%global xsver 2
 %global xsrel %{xsver}%{?xscount}%{?xshash}
 %global package_srccommit samba-4.23.3
 
@@ -167,6 +167,7 @@ Source15: usershares.conf.vendor
 Source16: samba-systemd-sysusers.conf
 Source17: samba-usershares-systemd-sysusers.conf
 Source18: samba-winbind-systemd-sysusers.conf
+Source30: smb.conf.extra
 
 Source201: README.downgrade
 Source202: samba.abignore
@@ -1419,6 +1420,7 @@ install -d -m 0755 %{buildroot}%{_sysconfdir}/logrotate.d
 install -m 0644 %{SOURCE10} %{buildroot}%{_sysconfdir}/logrotate.d/samba
 
 install -m 0644 %{SOURCE11} %{buildroot}%{_sysconfdir}/samba/smb.conf
+install -m 0644 %{SOURCE30} %{buildroot}%{_sysconfdir}/samba/smb.extra.conf
 install -m 0644 %{SOURCE12} %{buildroot}%{_sysconfdir}/samba/smb.conf.example
 install -m 0644 %{SOURCE15} %{buildroot}%{_sysconfdir}/samba/usershares.conf
 
@@ -1905,6 +1907,7 @@ fi
 %dir /var/lib/samba/lock
 %attr(755,root,root) %dir %{_sysconfdir}/samba
 %config(noreplace) %{_sysconfdir}/samba/smb.conf
+%config(noreplace) %{_sysconfdir}/samba/smb.extra.conf
 %{_sysconfdir}/samba/smb.conf.example
 %config(noreplace) %{_sysconfdir}/samba/lmhosts
 %config(noreplace) %{_sysconfdir}/sysconfig/samba
@@ -3801,6 +3804,16 @@ fi
 
 
 %changelog
+* Thu Jul 16 2026 Philippe Coval <philippe.coval@vates.tech> - 4.23.3-2.1
+- Update from XS 8.3
+- *** Upstream changelog ***
+
+  * Fri Jan 30 2026 Lin Liu <lin.liu01@citrix.com> - 4.23.3-2
+  - CP-311169: include /etc/samba/smb.extra.conf
+
+  * Mon Nov 24 2025 Lin Liu <Lin.Liu01@cloud.com> - 4.23.3-1
+  - CP-310101: Update samba to support ldaps and windows security hardening
+
 * Thu Jun 18 2026 Philippe Coval <philippe.coval@vates.tech> - 4.23.3-1.1
 - Drop downstream changes which are now aligned to XS (accel-aes, vfs_glusterfs)
 - *** Upstream changelog ***
