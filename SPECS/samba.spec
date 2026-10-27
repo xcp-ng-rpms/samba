@@ -409,7 +409,7 @@ SMB/CIFS clients.
 
 ### COMMON
 %package common
-Summary: Files used by both Samba servers and clients
+Summary: Files used by Samba clients (servers unsupported in XCP-ng)
 BuildArch: noarch
 
 Requires(post): systemd
@@ -421,7 +421,7 @@ Provides: samba4-common = %{samba_depver}
 Obsoletes: samba4-common < %{samba_depver}
 
 %description common
-samba-common provides files necessary for both the server and client
+samba-common provides files necessary for client (server unsupported in XCP-ng)
 packages of Samba.
 
 ### COMMON-LIBS
@@ -1552,16 +1552,19 @@ export SAMBA_DCERPCD_DONT_LOG_STDOUT=1
 %endif
 
 %post
-%systemd_post smb.service
-%systemd_post nmb.service
+# XCP-ng: remove servers (dom0's feature unsupported)
+# %%systemd_post smb.service
+# %%systemd_post nmb.service
 
 %preun
-%systemd_preun smb.service
-%systemd_preun nmb.service
+# XCP-ng: remove servers (dom0's feature unsupported)
+# %%systemd_preun smb.service
+# %%systemd_preun nmb.service
 
 %postun
-%systemd_postun_with_restart smb.service
-%systemd_postun_with_restart nmb.service
+# XCP-ng: remove servers (dom0's feature unsupported)
+# %%systemd_postun_with_restart smb.service
+# %%systemd_postun_with_restart nmb.service
 
 %pre common
 %if %{with systemd_rpm_macros}
@@ -1654,8 +1657,11 @@ fi
 %doc packaging/README.downgrade
 %{_bindir}/smbstatus
 %{_sbindir}/eventlogadm
-%{_sbindir}/nmbd
-%{_sbindir}/smbd
+
+# XCP-ng: remove servers (dom0's feature unsupported)
+%exclude %{_sbindir}/nmbd
+%exclude %{_sbindir}/smbd
+
 %if %{with dc} || %{with testsuite}
 # This is only used by vfs_dfs_samba4
 %{_libdir}/samba/libdfs-server-ad-samba4.so
@@ -1712,11 +1718,13 @@ fi
 %endif
 
 %dir %{_libexecdir}/samba
-%{_libexecdir}/samba/samba-bgqd
 
-%{_unitdir}/nmb.service
-%{_unitdir}/smb.service
-%{_unitdir}/samba-bgqd.service
+# XCP-ng: remove servers (dom0's feature unsupported)
+%exclude %{_libexecdir}/samba/samba-bgqd
+%exclude %{_unitdir}/nmb.service
+%exclude %{_unitdir}/smb.service
+%exclude %{_unitdir}/samba-bgqd.service
+
 %dir %{_sysconfdir}/openldap/schema
 %config %{_sysconfdir}/openldap/schema/samba.schema
 %config(noreplace) %{_sysconfdir}/pam.d/samba
@@ -3804,6 +3812,9 @@ fi
 
 
 %changelog
+* Tue Jul 21 2026 Philippe Coval <philippe.coval@vates.tech> - 4.23.3-2.2
+- Remove unsupported servers in dom0 (improve security). Exclude smbd nmbd from samba package.
+
 * Thu Jul 16 2026 Philippe Coval <philippe.coval@vates.tech> - 4.23.3-2.1
 - Update from XS 8.3
 - *** Upstream changelog ***
