@@ -142,7 +142,7 @@
 
 Name:           samba
 Version:        %{samba_version}
-Release: %{?xsrel}.1%{?dist}
+Release: %{?xsrel}.1~XCPNG3082.2%{?dist}
 
 Epoch: 0
 
